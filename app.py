@@ -34,11 +34,14 @@ CUSTOM_CSS = """
 .subtitle { text-align: center; color: #666; margin-bottom: 1.2em; }
 .status-ok { color: #16a34a; font-weight: 600; }
 .status-bad { color: #dc2626; font-weight: 600; }
-.bot-profile-row { align-items: center; gap: 1rem; margin-bottom: 0.5rem; }
-.bot-header { padding: 0.25rem 0 0 0.5rem; }
-.bot-name { font-size: 1.75rem; font-weight: 700; margin: 0 0 0.35rem 0; line-height: 1.2; }
-.bot-persona { color: #555; font-size: 0.95rem; margin: 0; line-height: 1.4; font-style: italic; }
-.chat-input-row { margin-top: 0.5rem; }
+.chat-layout { align-items: flex-start !important; gap: 1.25rem !important; }
+.chat-sidebar { max-width: 220px; }
+.bot-header { padding: 0.5rem 0 0 0; text-align: center; }
+.bot-name { font-size: 1.35rem; font-weight: 700; margin: 0 0 0.35rem 0; line-height: 1.2; }
+.bot-persona { color: #555; font-size: 0.85rem; margin: 0; line-height: 1.35; font-style: italic; }
+.chat-main { flex: 1; min-width: 0; }
+.chat-status { min-height: 1.5rem; margin: 0.35rem 0 0.5rem 0; font-size: 0.9rem; }
+.chat-input-row { margin-top: 0.25rem; }
 """
 
 
@@ -113,20 +116,34 @@ def _question_input_kwargs() -> dict:
     }
 
 
-def _corpus_status_html() -> str:
+def _chat_status(state: str = "idle", detail: str = "") -> str:
+    """Single status line for the chat panel."""
     stats = get_stats()
     words = stats.get("words", 0)
-    chunks = stats.get("chunks", 0)
-    if words == 0:
-        return (
-            '<span class="status-bad">No training text yet — '
-            "upload samples on the Training tab for better style matching.</span>"
-        )
-    quality = "excellent" if words >= 10000 else "good" if words >= 2000 else "basic"
-    return (
-        f'<span class="status-ok">Style corpus: {words:,} words, {chunks} chunks '
-        f"({quality} coverage).</span>"
-    )
+
+    if state == "thinking":
+        text = "Thinking…"
+        css = "status-ok"
+    elif state == "generating_voice":
+        text = "Generating voice…"
+        css = "status-ok"
+    elif state == "ready":
+        text = "Ready."
+        css = "status-ok"
+    elif state == "llm_error":
+        text = detail or "LLM error."
+        css = "status-bad"
+    elif state == "tts_error":
+        text = detail or "Speech generation failed."
+        css = "status-bad"
+    elif words == 0:
+        text = "No training text yet — add samples on the Training tab."
+        css = "status-bad"
+    else:
+        text = f"{words:,} words trained — ready to chat."
+        css = "status-ok"
+
+    return f'<div class="chat-status"><span class="{css}">{text}</span></div>'
 
 
 def _stats_markdown() -> str:
@@ -206,12 +223,14 @@ def _voice_choices() -> tuple[list[str], list[str]]:
     return predefined, reference
 
 
-def chat_respond(
-    message: str,
-    history: list,
-) -> tuple[list, str | None, str, str | None, str]:
+def chat_respond(message: str, history: list):
+    """Yield chat updates with a single status line (thinking → voice → ready)."""
+    history = list(history or [])
     if not message or not message.strip():
-        return history, None, _corpus_status_html(), _avatar_path(), _bot_header_html()
+        yield history, None, _chat_status("idle")
+        return
+
+    yield history, None, _chat_status("thinking")
 
     settings = get_settings()
     stats = get_stats()
@@ -232,25 +251,20 @@ def chat_respond(
             llm.chat(messages, max_tokens=min(int(settings["llm_max_tokens"]), 80))
         )
     except llm.LLMError as exc:
-        reply = f"⚠️ LLM error: {exc}"
+        yield history, None, _chat_status("llm_error", str(exc))
+        return
 
-    history = list(history or []) + [
+    history = history + [
         {"role": "user", "content": message.strip()},
         {"role": "assistant", "content": reply},
     ]
-    audio_path = None
-    status = _corpus_status_html()
+    yield history, None, _chat_status("generating_voice")
 
-    if not reply.startswith("⚠️"):
-        try:
-            audio_path, _ = chatterbox.synthesize(reply)
-            status += " &nbsp;|&nbsp; <span class='status-ok'>Speech generated.</span>"
-        except chatterbox.ChatterboxError as exc:
-            status += (
-                f" &nbsp;|&nbsp; <span class='status-bad'>TTS failed: {exc}</span>"
-            )
-
-    return history, audio_path, status, _avatar_path(), _bot_header_html()
+    try:
+        audio_path, _ = chatterbox.synthesize(reply)
+        yield history, audio_path, _chat_status("ready")
+    except chatterbox.ChatterboxError as exc:
+        yield history, None, _chat_status("tts_error", str(exc))
 
 
 def add_pasted_text(text: str) -> str:
@@ -430,57 +444,60 @@ def create_app() -> gr.Blocks:
         with gr.Tabs():
             # ── Chat ──────────────────────────────────────────────────────
             with gr.Tab("💬 Chat"):
-                corpus_status = gr.HTML(value=_corpus_status_html())
+                with gr.Row(elem_classes=["chat-layout"]):
+                    with gr.Column(scale=1, min_width=200, elem_classes=["chat-sidebar"]):
+                        avatar_img = gr.Image(
+                            value=_avatar_path(),
+                            height=200,
+                            width=200,
+                            interactive=False,
+                            show_label=False,
+                            container=False,
+                        )
+                        bot_header = gr.HTML(value=_bot_header_html())
 
-                with gr.Row(elem_classes=["bot-profile-row"]):
-                    avatar_img = gr.Image(
-                        value=_avatar_path(),
-                        height=200,
-                        width=200,
-                        interactive=False,
-                        show_label=False,
-                        container=False,
-                    )
-                    bot_header = gr.HTML(value=_bot_header_html())
+                    with gr.Column(scale=4, elem_classes=["chat-main"]):
+                        chatbot = gr.Chatbot(
+                            label="Conversation",
+                            height=340,
+                        )
+                        chat_status = gr.HTML(value=_chat_status("idle"))
 
-                chatbot = gr.Chatbot(
-                    label="Conversation",
-                    height=360,
-                )
-
-                with gr.Row(elem_classes=["chat-input-row"]):
-                    q_kwargs = _question_input_kwargs()
-                    msg_input = gr.Textbox(
-                        label=q_kwargs["label"],
-                        placeholder=q_kwargs["placeholder"],
-                        scale=5,
-                        lines=2,
-                        max_lines=6,
-                    )
-                    send_btn = gr.Button("Ask", variant="primary", scale=1, min_width=100)
+                        q_kwargs = _question_input_kwargs()
+                        with gr.Row(elem_classes=["chat-input-row"]):
+                            msg_input = gr.Textbox(
+                                label=q_kwargs["label"],
+                                placeholder=q_kwargs["placeholder"],
+                                scale=5,
+                                lines=2,
+                                max_lines=6,
+                            )
+                            send_btn = gr.Button(
+                                "Ask", variant="primary", scale=1, min_width=100
+                            )
 
                 reply_audio = gr.Audio(
-                    label=f"{_bot_name()} speaking…",
                     type="filepath",
                     autoplay=True,
                     interactive=False,
+                    visible=False,
                 )
 
                 send_btn.click(
                     chat_respond,
                     inputs=[msg_input, chatbot],
-                    outputs=[chatbot, reply_audio, corpus_status, avatar_img, bot_header],
+                    outputs=[chatbot, reply_audio, chat_status],
                 ).then(lambda: "", outputs=msg_input)
 
                 msg_input.submit(
                     chat_respond,
                     inputs=[msg_input, chatbot],
-                    outputs=[chatbot, reply_audio, corpus_status, avatar_img, bot_header],
+                    outputs=[chatbot, reply_audio, chat_status],
                 ).then(lambda: "", outputs=msg_input)
 
                 demo.load(
-                    fn=lambda: (_avatar_path(), _bot_header_html()),
-                    outputs=[avatar_img, bot_header],
+                    fn=lambda: (_avatar_path(), _bot_header_html(), _chat_status("idle")),
+                    outputs=[avatar_img, bot_header, chat_status],
                 )
 
             # ── Training ────────────────────────────────────────────────────
