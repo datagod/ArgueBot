@@ -24,11 +24,9 @@ DEFAULTS: dict[str, Any] = {
     "chatterbox_cfg_weight": 0.5,
     "chatterbox_speed_factor": 1.0,
     "chatterbox_model": "chatterbox-turbo",
+    "persona_mode": "Normal",
     "bot_name": "ArgueBot",
-    "bot_persona_blurb": (
-        "Unhinged, furious, and barely keeping it together. Snaps at everyone, "
-        "rants at the slightest provocation, and sounds like he's about to blow a gasket."
-    ),
+    "bot_persona_blurb": "Calm, clear, and conversational. Helpful without drama.",
     "avatar_path": "",
     "rag_top_k": 6,
 }

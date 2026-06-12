@@ -22,6 +22,7 @@ warnings.filterwarnings("ignore", category=StarletteDeprecationWarning)
 import gradio as gr
 from dotenv import load_dotenv
 
+from personas import PERSONA_CHOICES, get_persona_preset, persona_tts_values
 from prompts import build_system_prompt
 from services import chatterbox, corpus, llm, rag
 from services.corpus import get_stats
@@ -66,6 +67,7 @@ def _apply_env_defaults() -> None:
         "CHATTERBOX_CFG_WEIGHT": ("chatterbox_cfg_weight", float),
         "BOT_NAME": "bot_name",
         "BOT_PERSONA_BLURB": "bot_persona_blurb",
+        "PERSONA_MODE": "persona_mode",
     }
     updates: dict = {}
     for env_key, target in mapping.items():
@@ -101,10 +103,10 @@ def _avatar_path() -> str | None:
 
 def _bot_header_html() -> str:
     name = _bot_name()
-    persona = get_settings().get("bot_persona_blurb", "").strip()
-    persona_html = (
-        f'<p class="bot-persona">{persona}</p>' if persona else ""
-    )
+    settings = get_settings()
+    mode = settings.get("persona_mode", "Normal")
+    persona = get_persona_preset(mode)["blurb"]
+    persona_html = f'<p class="bot-persona">{mode} — {persona}</p>'
     return (
         f'<div class="bot-header">'
         f'<h2 class="bot-name">{name}</h2>'
@@ -185,6 +187,7 @@ def _settings_to_form() -> tuple:
         s.get("chatterbox_cfg_weight", 0.5),
         s.get("chatterbox_speed_factor", 1.0),
         s["bot_name"],
+        s.get("persona_mode", "Normal"),
         s.get("bot_persona_blurb", ""),
     )
 
@@ -242,7 +245,7 @@ def chat_respond(message: str, history: list):
     style_chunks = rag.retrieve(message)
     system_prompt = build_system_prompt(
         bot_name=settings["bot_name"],
-        persona_blurb=settings.get("bot_persona_blurb", ""),
+        persona_mode=settings.get("persona_mode", "Normal"),
         style_excerpts=style_chunks,
         corpus_word_count=stats.get("words", 0),
     )
@@ -307,6 +310,18 @@ def reindex_action() -> str:
     return f"Index rebuilt.\n\n{_stats_markdown()}"
 
 
+def apply_persona_mode(mode: str) -> tuple:
+    """Update voice sliders and blurb preview when persona mode changes."""
+    preset = get_persona_preset(mode)
+    return (
+        preset["blurb"],
+        preset["chatterbox_temperature"],
+        preset["chatterbox_exaggeration"],
+        preset["chatterbox_cfg_weight"],
+        preset["chatterbox_speed_factor"],
+    )
+
+
 def save_settings_action(
     llm_base_url,
     llm_model,
@@ -322,9 +337,10 @@ def save_settings_action(
     cb_cfg_weight,
     cb_speed_factor,
     bot_name,
-    bot_persona,
+    persona_mode,
     avatar_file,
 ) -> str:
+    preset = get_persona_preset(persona_mode)
     updates = {
         "llm_base_url": llm_base_url.strip(),
         "llm_model": llm_model.strip(),
@@ -340,7 +356,8 @@ def save_settings_action(
         "chatterbox_cfg_weight": float(cb_cfg_weight),
         "chatterbox_speed_factor": float(cb_speed_factor),
         "bot_name": bot_name.strip() or "ArgueBot",
-        "bot_persona_blurb": bot_persona.strip(),
+        "persona_mode": persona_mode,
+        "bot_persona_blurb": preset["blurb"],
     }
 
     if avatar_file is not None:
@@ -612,14 +629,21 @@ def create_app() -> gr.Blocks:
                 voice_test_audio = gr.Audio(label="Voice test playback", type="filepath")
 
                 gr.Markdown("### Persona")
+                persona_mode_radio = gr.Radio(
+                    choices=PERSONA_CHOICES,
+                    value=form[14] if form[14] in PERSONA_CHOICES else "Normal",
+                    label="Persona mode",
+                    info="Sets chat tone and Chatterbox voice delivery",
+                )
+                persona_blurb_preview = gr.Textbox(
+                    label="Tone preview",
+                    value=get_persona_preset(form[14] if form[14] in PERSONA_CHOICES else "Normal")["blurb"],
+                    lines=2,
+                    interactive=False,
+                )
                 with gr.Row():
                     bot_name_in = gr.Textbox(label="Bot name", value=form[13])
                     avatar_upload = gr.Image(label="Avatar image", type="filepath")
-                bot_persona_in = gr.Textbox(
-                    label="Persona / tone description",
-                    value=form[14],
-                    lines=3,
-                )
 
                 save_btn = gr.Button("💾 Save all settings", variant="primary", size="lg")
                 save_out = gr.Textbox(label="Save status", interactive=False)
@@ -653,13 +677,24 @@ def create_app() -> gr.Blocks:
                     ],
                     outputs=[cb_test_out, voice_test_audio],
                 )
+                persona_mode_radio.change(
+                    apply_persona_mode,
+                    inputs=persona_mode_radio,
+                    outputs=[
+                        persona_blurb_preview,
+                        cb_temp,
+                        cb_exag,
+                        cb_cfg,
+                        cb_speed,
+                    ],
+                )
                 save_btn.click(
                     save_settings_action,
                     inputs=[
                         llm_url, llm_model_dd, llm_temp, llm_max_tok,
                         cb_url, cb_model, voice_mode, predefined_dd, reference_dd,
                         cb_temp, cb_exag, cb_cfg, cb_speed,
-                        bot_name_in, bot_persona_in, avatar_upload,
+                        bot_name_in, persona_mode_radio, avatar_upload,
                     ],
                     outputs=[save_out, avatar_img, bot_header, msg_input, reply_audio],
                 )
