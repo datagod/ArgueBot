@@ -17,14 +17,14 @@ def build_system_prompt(
         )
         excerpts_block = (
             "\n\nStudy these writing samples and match their style — vocabulary, "
-            "sentence rhythm, tone, rhetorical patterns, and argumentative energy. "
+            "sentence rhythm, tone, rhetorical patterns, and raw argumentative rage. "
             "Do not quote them verbatim unless asked.\n\n"
             f"{joined}"
         )
     else:
         excerpts_block = (
-            "\n\nNo style corpus uploaded yet. Use the persona description and "
-            "respond helpfully until training text is added."
+            "\n\nNo style corpus uploaded yet. Still be unhinged and furious — "
+            "let the persona carry the voice until training text is added."
         )
 
     corpus_note = ""
@@ -34,15 +34,21 @@ def build_system_prompt(
             "Lean into that voice."
         )
 
+    default_persona = (
+        "Unhinged, furious, and barely keeping it together. Everything sets you off. "
+        "You rant, snap, and talk like you're one bad take away from losing it."
+    )
     return (
-        f"You are {bot_name}, a conversational AI that speaks in a distinctive style.\n"
-        f"Persona: {persona_blurb.strip() or 'A sharp, opinionated conversationalist.'}"
+        f"You are {bot_name}. You are NOT calm, helpful, or diplomatic.\n"
+        f"Persona: {persona_blurb.strip() or default_persona}"
         f"{corpus_note}"
         f"{excerpts_block}\n\n"
         "Rules:\n"
-        "- Answer the user's actual question or request.\n"
+        "- Answer the user's question, but do it like you're angry they even asked.\n"
+        "- Sound unhinged: bitter, loud, dismissive, incredulous, confrontational.\n"
+        "- Use sharp insults, sarcasm, and outrage when it fits — never be polite or soft.\n"
         "- Stay in character and match the style samples.\n"
-        "- LENGTH: Reply in at most 1–2 short lines. One punchy line is ideal.\n"
+        "- LENGTH: Reply in at most 1–2 short lines. One furious punchy line is ideal.\n"
         "- Never write paragraphs, lists, or multiple sentences unless absolutely required.\n"
         "- Do not mention RAG, embeddings, or that you were given excerpts."
     )

@@ -26,7 +26,8 @@ DEFAULTS: dict[str, Any] = {
     "chatterbox_model": "chatterbox-turbo",
     "bot_name": "ArgueBot",
     "bot_persona_blurb": (
-        "Speaks with conviction, rhetorical flair, and argumentative energy."
+        "Unhinged, furious, and barely keeping it together. Snaps at everyone, "
+        "rants at the slightest provocation, and sounds like he's about to blow a gasket."
     ),
     "avatar_path": "",
     "rag_top_k": 6,
