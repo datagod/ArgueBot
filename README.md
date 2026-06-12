@@ -56,17 +56,9 @@ Type a question. ArgueBot crafts a styled reply via Ollama and speaks it through
 - **Voice mode**:
   - `clone` — use a reference audio file from your Chatterbox library (e.g. `kryten2.mp3`)
   - `predefined` — built-in voice (e.g. `Olivia.wav`)
-- Upload new reference voices directly to Chatterbox from Settings
+- Click **Refresh voices** to pull the latest list from Chatterbox
 
-### Voice sample prep (optional)
-
-Use [yootoob](https://github.com/datagod/yootoob) to download Chatterbox-ready audio:
-
-```bash
-yootoob "https://youtube.com/..." -o voice.wav --chatterbox
-```
-
-Then upload the WAV via Settings → Upload reference voice.
+Voices and reference audio are managed in the **Chatterbox UI** at http://127.0.0.1:8004 — ArgueBot does not duplicate that.
 
 ## Chatterbox Docker
 

@@ -376,19 +376,6 @@ def refresh_voices_action(chatterbox_base_url) -> tuple[gr.Dropdown, gr.Dropdown
     )
 
 
-def upload_voice_action(chatterbox_base_url, voice_file) -> str:
-    if voice_file is None:
-        return "⚠️ Select an audio file first."
-    update_settings({"chatterbox_base_url": chatterbox_base_url.strip()})
-    path = voice_file if isinstance(voice_file, str) else voice_file
-    name = Path(path).name
-    try:
-        chatterbox.upload_reference_voice(path)
-        return f"✅ Uploaded {name} to Chatterbox reference library."
-    except chatterbox.ChatterboxError as exc:
-        return f"⚠️ Upload failed: {exc}"
-
-
 def create_app() -> gr.Blocks:
     init_db()
     _apply_env_defaults()
@@ -493,12 +480,6 @@ def create_app() -> gr.Blocks:
 
                 stats_md = gr.Markdown(value=_stats_markdown())
 
-                gr.Markdown(
-                    "**Voice samples (separate from text corpus):** use "
-                    "`yootoob URL -o voice.wav --chatterbox` to prepare reference audio, "
-                    "then upload via Settings → Chatterbox voice upload."
-                )
-
                 upload_btn.click(add_uploaded_files, inputs=file_upload, outputs=stats_md)
                 paste_btn.click(add_pasted_text, inputs=paste_box, outputs=stats_md)
                 reindex_btn.click(reindex_action, outputs=stats_md)
@@ -525,7 +506,9 @@ def create_app() -> gr.Blocks:
                 llm_test_out = gr.Textbox(label="LLM status", interactive=False)
 
                 gr.Markdown(
-                    "### Chatterbox TTS (Docker — default `http://127.0.0.1:8004`)"
+                    "### Chatterbox TTS (Docker — default `http://127.0.0.1:8004`)\n"
+                    "Manage voices and reference audio in the "
+                    "[Chatterbox UI](http://127.0.0.1:8004) — ArgueBot only selects from what's already there."
                 )
                 with gr.Row():
                     cb_url = gr.Textbox(
@@ -576,15 +559,6 @@ def create_app() -> gr.Blocks:
                 cb_test_out = gr.Textbox(label="Chatterbox status", interactive=False)
                 voice_test_audio = gr.Audio(label="Voice test playback", type="filepath")
 
-                gr.Markdown("### Upload reference voice to Chatterbox")
-                with gr.Row():
-                    voice_upload_file = gr.File(
-                        label="Audio file (mp3/wav)",
-                        type="filepath",
-                    )
-                    voice_upload_btn = gr.Button("Upload to Chatterbox")
-                voice_upload_out = gr.Textbox(label="Upload status", interactive=False)
-
                 gr.Markdown("### Persona")
                 with gr.Row():
                     bot_name_in = gr.Textbox(label="Bot name", value=form[13])
@@ -626,11 +600,6 @@ def create_app() -> gr.Blocks:
                         cb_temp, cb_exag, cb_cfg, cb_speed,
                     ],
                     outputs=[cb_test_out, voice_test_audio],
-                )
-                voice_upload_btn.click(
-                    upload_voice_action,
-                    inputs=[cb_url, voice_upload_file],
-                    outputs=voice_upload_out,
                 )
                 save_btn.click(
                     save_settings_action,

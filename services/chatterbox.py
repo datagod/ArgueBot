@@ -130,15 +130,3 @@ def synthesize(text: str, output_path: Path | None = None) -> tuple[str, bytes]:
     output_path.write_bytes(audio)
     return str(output_path), audio
 
-
-def upload_reference_voice(file_path: str | Path) -> str:
-    path = Path(file_path)
-    with path.open("rb") as fh:
-        resp = requests.post(
-            f"{_base_url()}/upload_reference",
-            files={"files": (path.name, fh, "application/octet-stream")},
-            timeout=120,
-        )
-    if not resp.ok:
-        raise ChatterboxError(f"Voice upload failed: {resp.text[:500]}")
-    return path.name
