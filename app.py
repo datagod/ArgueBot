@@ -12,7 +12,12 @@ import argparse
 import datetime
 import os
 import shutil
+import warnings
 from pathlib import Path
+
+from starlette.exceptions import StarletteDeprecationWarning
+
+warnings.filterwarnings("ignore", category=StarletteDeprecationWarning)
 
 import gradio as gr
 from dotenv import load_dotenv
