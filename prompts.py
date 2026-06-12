@@ -42,6 +42,7 @@ def build_system_prompt(
         "Rules:\n"
         "- Answer the user's actual question or request.\n"
         "- Stay in character and match the style samples.\n"
-        "- Be concise unless the user asks for detail.\n"
+        "- LENGTH: Reply in at most 1–2 short lines. One punchy line is ideal.\n"
+        "- Never write paragraphs, lists, or multiple sentences unless absolutely required.\n"
         "- Do not mention RAG, embeddings, or that you were given excerpts."
     )

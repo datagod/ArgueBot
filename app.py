@@ -185,6 +185,16 @@ def _history_to_llm_messages(history: list) -> list[dict[str, str]]:
     return messages
 
 
+def _trim_to_short_reply(text: str, max_lines: int = 2) -> str:
+    """Keep replies to one or two lines."""
+    lines = [line.strip() for line in text.strip().splitlines() if line.strip()]
+    if not lines:
+        return text.strip()
+    if len(lines) <= max_lines:
+        return "\n".join(lines)
+    return "\n".join(lines[:max_lines])
+
+
 def _voice_choices() -> tuple[list[str], list[str]]:
     try:
         voices = chatterbox.list_all_voices()
@@ -218,7 +228,9 @@ def chat_respond(
     messages.append({"role": "user", "content": message.strip()})
 
     try:
-        reply = llm.chat(messages)
+        reply = _trim_to_short_reply(
+            llm.chat(messages, max_tokens=min(int(settings["llm_max_tokens"]), 80))
+        )
     except llm.LLMError as exc:
         reply = f"⚠️ LLM error: {exc}"
 

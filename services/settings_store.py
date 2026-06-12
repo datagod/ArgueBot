@@ -14,7 +14,7 @@ DEFAULTS: dict[str, Any] = {
     "llm_base_url": "http://127.0.0.1:11434",
     "llm_model": "qwen2.5:7b",
     "llm_temperature": 0.8,
-    "llm_max_tokens": 512,
+    "llm_max_tokens": 80,
     "chatterbox_base_url": "http://127.0.0.1:8004",
     "chatterbox_voice_mode": "clone",
     "chatterbox_predefined_voice": "Olivia.wav",
