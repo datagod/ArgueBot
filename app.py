@@ -387,7 +387,6 @@ def create_app() -> gr.Blocks:
                     chatbot = gr.Chatbot(
                         label="Conversation",
                         height=420,
-                        show_copy_button=True,
                     )
 
                 with gr.Row():
