@@ -167,6 +167,24 @@ def _settings_to_form() -> tuple:
     )
 
 
+def _history_to_llm_messages(history: list) -> list[dict[str, str]]:
+    """Convert Gradio chat history to OpenAI-style message list."""
+    messages: list[dict[str, str]] = []
+    for item in history or []:
+        if isinstance(item, dict):
+            role = item.get("role")
+            content = item.get("content", "")
+            if role in ("user", "assistant") and content:
+                messages.append({"role": role, "content": content})
+        elif isinstance(item, (list, tuple)) and len(item) == 2:
+            user_msg, bot_msg = item
+            if user_msg:
+                messages.append({"role": "user", "content": user_msg})
+            if bot_msg:
+                messages.append({"role": "assistant", "content": bot_msg})
+    return messages
+
+
 def _voice_choices() -> tuple[list[str], list[str]]:
     try:
         voices = chatterbox.list_all_voices()
@@ -196,11 +214,7 @@ def chat_respond(
     )
 
     messages = [{"role": "system", "content": system_prompt}]
-    for user_msg, bot_msg in history:
-        if user_msg:
-            messages.append({"role": "user", "content": user_msg})
-        if bot_msg:
-            messages.append({"role": "assistant", "content": bot_msg})
+    messages.extend(_history_to_llm_messages(history))
     messages.append({"role": "user", "content": message.strip()})
 
     try:
@@ -208,7 +222,10 @@ def chat_respond(
     except llm.LLMError as exc:
         reply = f"⚠️ LLM error: {exc}"
 
-    history = history + [[message.strip(), reply]]
+    history = list(history or []) + [
+        {"role": "user", "content": message.strip()},
+        {"role": "assistant", "content": reply},
+    ]
     audio_path = None
     status = _corpus_status_html()
 
