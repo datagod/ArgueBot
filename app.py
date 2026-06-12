@@ -34,6 +34,11 @@ CUSTOM_CSS = """
 .subtitle { text-align: center; color: #666; margin-bottom: 1.2em; }
 .status-ok { color: #16a34a; font-weight: 600; }
 .status-bad { color: #dc2626; font-weight: 600; }
+.bot-profile-row { align-items: center; gap: 1rem; margin-bottom: 0.5rem; }
+.bot-header { padding: 0.25rem 0 0 0.5rem; }
+.bot-name { font-size: 1.75rem; font-weight: 700; margin: 0 0 0.35rem 0; line-height: 1.2; }
+.bot-persona { color: #555; font-size: 0.95rem; margin: 0; line-height: 1.4; font-style: italic; }
+.chat-input-row { margin-top: 0.5rem; }
 """
 
 
@@ -71,6 +76,10 @@ def _apply_env_defaults() -> None:
         update_settings(updates)
 
 
+def _bot_name() -> str:
+    return get_settings().get("bot_name", "ArgueBot") or "ArgueBot"
+
+
 def _avatar_path() -> str | None:
     settings = get_settings()
     path = settings.get("avatar_path")
@@ -80,6 +89,28 @@ def _avatar_path() -> str | None:
         if candidate.suffix.lower() in {".png", ".jpg", ".jpeg", ".webp", ".gif"}:
             return str(candidate)
     return None
+
+
+def _bot_header_html() -> str:
+    name = _bot_name()
+    persona = get_settings().get("bot_persona_blurb", "").strip()
+    persona_html = (
+        f'<p class="bot-persona">{persona}</p>' if persona else ""
+    )
+    return (
+        f'<div class="bot-header">'
+        f'<h2 class="bot-name">{name}</h2>'
+        f"{persona_html}"
+        f"</div>"
+    )
+
+
+def _question_input_kwargs() -> dict:
+    name = _bot_name()
+    return {
+        "label": f"Ask {name}",
+        "placeholder": f"Type your question for {name}…",
+    }
 
 
 def _corpus_status_html() -> str:
@@ -150,9 +181,9 @@ def _voice_choices() -> tuple[list[str], list[str]]:
 def chat_respond(
     message: str,
     history: list,
-) -> tuple[list, str | None, str, str | None]:
+) -> tuple[list, str | None, str, str | None, str]:
     if not message or not message.strip():
-        return history, None, _corpus_status_html(), _avatar_path()
+        return history, None, _corpus_status_html(), _avatar_path(), _bot_header_html()
 
     settings = get_settings()
     stats = get_stats()
@@ -190,7 +221,7 @@ def chat_respond(
                 f" &nbsp;|&nbsp; <span class='status-bad'>TTS failed: {exc}</span>"
             )
 
-    return history, audio_path, status, _avatar_path()
+    return history, audio_path, status, _avatar_path(), _bot_header_html()
 
 
 def add_pasted_text(text: str) -> str:
@@ -272,7 +303,17 @@ def save_settings_action(
         updates["avatar_path"] = str(dest)
 
     update_settings(updates)
-    return "✅ Settings saved."
+    name = updates["bot_name"]
+    return (
+        "✅ Settings saved.",
+        _avatar_path(),
+        _bot_header_html(),
+        gr.Textbox(
+            label=f"Ask {name}",
+            placeholder=f"Type your question for {name}…",
+        ),
+        gr.Audio(label=f"{name} speaking…"),
+    )
 
 
 def test_llm_action(llm_base_url, llm_model) -> str:
@@ -375,46 +416,56 @@ def create_app() -> gr.Blocks:
             with gr.Tab("💬 Chat"):
                 corpus_status = gr.HTML(value=_corpus_status_html())
 
-                with gr.Row():
+                with gr.Row(elem_classes=["bot-profile-row"]):
                     avatar_img = gr.Image(
-                        label="Bot",
                         value=_avatar_path(),
-                        height=220,
-                        width=220,
+                        height=200,
+                        width=200,
                         interactive=False,
-                        show_label=True,
+                        show_label=False,
+                        container=False,
                     )
-                    chatbot = gr.Chatbot(
-                        label="Conversation",
-                        height=420,
-                    )
+                    bot_header = gr.HTML(value=_bot_header_html())
 
-                with gr.Row():
+                chatbot = gr.Chatbot(
+                    label="Conversation",
+                    height=360,
+                )
+
+                with gr.Row(elem_classes=["chat-input-row"]):
+                    q_kwargs = _question_input_kwargs()
                     msg_input = gr.Textbox(
-                        label="Your message",
-                        placeholder="Ask ArgueBot anything…",
-                        scale=4,
+                        label=q_kwargs["label"],
+                        placeholder=q_kwargs["placeholder"],
+                        scale=5,
                         lines=2,
+                        max_lines=6,
                     )
-                    send_btn = gr.Button("Send", variant="primary", scale=1)
+                    send_btn = gr.Button("Ask", variant="primary", scale=1, min_width=100)
 
                 reply_audio = gr.Audio(
-                    label="Bot speech",
+                    label=f"{_bot_name()} speaking…",
                     type="filepath",
                     autoplay=True,
+                    interactive=False,
                 )
 
                 send_btn.click(
                     chat_respond,
                     inputs=[msg_input, chatbot],
-                    outputs=[chatbot, reply_audio, corpus_status, avatar_img],
+                    outputs=[chatbot, reply_audio, corpus_status, avatar_img, bot_header],
                 ).then(lambda: "", outputs=msg_input)
 
                 msg_input.submit(
                     chat_respond,
                     inputs=[msg_input, chatbot],
-                    outputs=[chatbot, reply_audio, corpus_status, avatar_img],
+                    outputs=[chatbot, reply_audio, corpus_status, avatar_img, bot_header],
                 ).then(lambda: "", outputs=msg_input)
+
+                demo.load(
+                    fn=lambda: (_avatar_path(), _bot_header_html()),
+                    outputs=[avatar_img, bot_header],
+                )
 
             # ── Training ────────────────────────────────────────────────────
             with gr.Tab("📚 Training"):
@@ -589,7 +640,7 @@ def create_app() -> gr.Blocks:
                         cb_temp, cb_exag, cb_cfg, cb_speed,
                         bot_name_in, bot_persona_in, avatar_upload,
                     ],
-                    outputs=save_out,
+                    outputs=[save_out, avatar_img, bot_header, msg_input, reply_audio],
                 )
 
     return demo
