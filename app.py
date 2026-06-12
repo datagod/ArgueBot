@@ -465,6 +465,7 @@ def create_app() -> gr.Blocks:
                         chatbot = gr.Chatbot(
                             label="Conversation",
                             height=340,
+                            buttons=[],
                         )
                         chat_status = gr.HTML(value=_chat_status("idle"))
 
@@ -481,12 +482,12 @@ def create_app() -> gr.Blocks:
                                 "Ask", variant="primary", scale=1, min_width=100
                             )
 
-                reply_audio = gr.Audio(
-                    type="filepath",
-                    autoplay=True,
-                    interactive=False,
-                    visible=False,
-                )
+                        reply_audio = gr.Audio(
+                            label=f"{_bot_name()} reply",
+                            type="filepath",
+                            autoplay=True,
+                            interactive=False,
+                        )
 
                 send_btn.click(
                     chat_respond,
