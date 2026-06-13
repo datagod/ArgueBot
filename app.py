@@ -50,6 +50,23 @@ CUSTOM_CSS = """
 .chat-input-row { margin-top: 0.25rem; }
 """
 
+AUTOPLAY_AUDIO_JS = """
+() => {
+    const play = () => {
+        const root = document.getElementById("arguebot-reply-audio");
+        if (!root) return;
+        const audio = root.querySelector("audio");
+        if (audio) {
+            audio.muted = false;
+            audio.play().catch(() => {});
+        }
+    };
+    play();
+    setTimeout(play, 200);
+    setTimeout(play, 600);
+}
+"""
+
 
 def _apply_env_defaults() -> None:
     """Seed settings from .env on first run."""
@@ -235,10 +252,10 @@ def chat_respond(message: str, history: list):
     """Yield chat updates with a single status line (thinking → voice → ready)."""
     history = list(history or [])
     if not message or not message.strip():
-        yield history, None, _chat_status("idle")
+        yield history, gr.skip(), _chat_status("idle")
         return
 
-    yield history, None, _chat_status("thinking")
+    yield history, gr.skip(), _chat_status("thinking")
 
     settings = get_settings()
     stats = get_stats()
@@ -260,20 +277,20 @@ def chat_respond(message: str, history: list):
             llm.chat(messages, max_tokens=min(int(settings["llm_max_tokens"]), 80))
         )
     except llm.LLMError as exc:
-        yield history, None, _chat_status("llm_error", str(exc))
+        yield history, gr.skip(), _chat_status("llm_error", str(exc))
         return
 
     history = history + [
         {"role": "user", "content": message.strip()},
         {"role": "assistant", "content": reply},
     ]
-    yield history, None, _chat_status("generating_voice")
+    yield history, gr.skip(), _chat_status("generating_voice")
 
     try:
         audio_path, _ = chatterbox.synthesize(reply)
         yield history, audio_path, _chat_status("ready")
     except chatterbox.ChatterboxError as exc:
-        yield history, None, _chat_status("tts_error", str(exc))
+        yield history, gr.skip(), _chat_status("tts_error", str(exc))
 
 
 def add_pasted_text(text: str) -> str:
@@ -503,19 +520,24 @@ def create_app() -> gr.Blocks:
                             type="filepath",
                             autoplay=True,
                             interactive=False,
+                            elem_id="arguebot-reply-audio",
                         )
 
                 send_btn.click(
                     chat_respond,
                     inputs=[msg_input, chatbot],
                     outputs=[chatbot, reply_audio, chat_status],
-                ).then(lambda: "", outputs=msg_input)
+                ).then(lambda: "", outputs=msg_input).then(
+                    None, None, None, js=AUTOPLAY_AUDIO_JS
+                )
 
                 msg_input.submit(
                     chat_respond,
                     inputs=[msg_input, chatbot],
                     outputs=[chatbot, reply_audio, chat_status],
-                ).then(lambda: "", outputs=msg_input)
+                ).then(lambda: "", outputs=msg_input).then(
+                    None, None, None, js=AUTOPLAY_AUDIO_JS
+                )
 
                 demo.load(
                     fn=lambda: (_avatar_path(), _bot_header_html(), _chat_status("idle")),

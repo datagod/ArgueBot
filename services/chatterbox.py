@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import datetime
 from pathlib import Path
 from typing import Any
 
@@ -125,7 +126,10 @@ def synthesize(text: str, output_path: Path | None = None) -> tuple[str, bytes]:
 
     audio = resp.content
     if output_path is None:
-        output_path = Path(__file__).resolve().parent.parent / "data" / "last_reply.wav"
+        ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+        output_path = (
+            Path(__file__).resolve().parent.parent / "data" / "replies" / f"reply_{ts}.wav"
+        )
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_bytes(audio)
     return str(output_path), audio
