@@ -11,7 +11,6 @@ from __future__ import annotations
 import argparse
 import datetime
 import os
-import shutil
 import warnings
 from pathlib import Path
 
@@ -25,6 +24,7 @@ from dotenv import load_dotenv
 from personas import PERSONA_CHOICES, get_persona_preset, persona_tts_values
 from prompts import build_system_prompt
 from services import chatterbox, corpus, llm, rag
+from services.avatar import process_avatar
 from services.corpus import get_stats
 from services.settings_store import get_settings, init_db, update_settings
 
@@ -363,11 +363,8 @@ def save_settings_action(
     }
 
     if avatar_file is not None:
-        AVATAR_DIR.mkdir(parents=True, exist_ok=True)
         src = avatar_file if isinstance(avatar_file, str) else avatar_file
-        dest = AVATAR_DIR / f"avatar{Path(src).suffix or '.png'}"
-        shutil.copy(src, dest)
-        updates["avatar_path"] = str(dest)
+        updates["avatar_path"] = process_avatar(src, AVATAR_DIR)
 
     update_settings(updates)
     name = updates["bot_name"]
