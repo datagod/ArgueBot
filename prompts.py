@@ -8,10 +8,12 @@ from personas import get_persona_preset
 def build_system_prompt(
     bot_name: str,
     persona_mode: str,
+    persona_blurb: str,
     style_excerpts: list[str],
     corpus_word_count: int,
 ) -> str:
     preset = get_persona_preset(persona_mode)
+    tone_prompt = persona_blurb.strip() or preset["blurb"]
 
     if style_excerpts:
         joined = "\n\n---\n\n".join(
@@ -36,7 +38,7 @@ def build_system_prompt(
     tone_rules = "\n".join(f"- {rule}" for rule in preset["tone_rules"])
     return (
         f"{preset['intro'].format(name=bot_name)}\n"
-        f"Persona ({persona_mode}): {preset['blurb']}"
+        f"Persona ({persona_mode}): {tone_prompt}"
         f"{corpus_note}"
         f"{excerpts_block}\n\n"
         "Rules:\n"

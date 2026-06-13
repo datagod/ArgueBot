@@ -105,7 +105,7 @@ def _bot_header_html() -> str:
     name = _bot_name()
     settings = get_settings()
     mode = settings.get("persona_mode", "Normal")
-    persona = get_persona_preset(mode)["blurb"]
+    persona = settings.get("bot_persona_blurb", "").strip() or get_persona_preset(mode)["blurb"]
     persona_html = f'<p class="bot-persona">{mode} — {persona}</p>'
     return (
         f'<div class="bot-header">'
@@ -246,6 +246,7 @@ def chat_respond(message: str, history: list):
     system_prompt = build_system_prompt(
         bot_name=settings["bot_name"],
         persona_mode=settings.get("persona_mode", "Normal"),
+        persona_blurb=settings.get("bot_persona_blurb", ""),
         style_excerpts=style_chunks,
         corpus_word_count=stats.get("words", 0),
     )
@@ -338,9 +339,9 @@ def save_settings_action(
     cb_speed_factor,
     bot_name,
     persona_mode,
+    persona_prompt,
     avatar_file,
 ) -> str:
-    preset = get_persona_preset(persona_mode)
     updates = {
         "llm_base_url": llm_base_url.strip(),
         "llm_model": llm_model.strip(),
@@ -357,7 +358,8 @@ def save_settings_action(
         "chatterbox_speed_factor": float(cb_speed_factor),
         "bot_name": bot_name.strip() or "ArgueBot",
         "persona_mode": persona_mode,
-        "bot_persona_blurb": preset["blurb"],
+        "bot_persona_blurb": persona_prompt.strip()
+        or get_persona_preset(persona_mode)["blurb"],
     }
 
     if avatar_file is not None:
@@ -635,11 +637,13 @@ def create_app() -> gr.Blocks:
                     label="Persona mode",
                     info="Sets chat tone and Chatterbox voice delivery",
                 )
-                persona_blurb_preview = gr.Textbox(
-                    label="Tone preview",
-                    value=get_persona_preset(form[14] if form[14] in PERSONA_CHOICES else "Normal")["blurb"],
-                    lines=2,
-                    interactive=False,
+                persona_prompt_in = gr.Textbox(
+                    label="Tone prompt",
+                    value=form[15] or get_persona_preset(
+                        form[14] if form[14] in PERSONA_CHOICES else "Normal"
+                    )["blurb"],
+                    lines=4,
+                    placeholder="Describe how the bot should sound. Changing persona mode fills this in — edit freely.",
                 )
                 with gr.Row():
                     bot_name_in = gr.Textbox(label="Bot name", value=form[13])
@@ -681,7 +685,7 @@ def create_app() -> gr.Blocks:
                     apply_persona_mode,
                     inputs=persona_mode_radio,
                     outputs=[
-                        persona_blurb_preview,
+                        persona_prompt_in,
                         cb_temp,
                         cb_exag,
                         cb_cfg,
@@ -694,7 +698,7 @@ def create_app() -> gr.Blocks:
                         llm_url, llm_model_dd, llm_temp, llm_max_tok,
                         cb_url, cb_model, voice_mode, predefined_dd, reference_dd,
                         cb_temp, cb_exag, cb_cfg, cb_speed,
-                        bot_name_in, persona_mode_radio, avatar_upload,
+                        bot_name_in, persona_mode_radio, persona_prompt_in, avatar_upload,
                     ],
                     outputs=[save_out, avatar_img, bot_header, msg_input, reply_audio],
                 )
